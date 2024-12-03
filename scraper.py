@@ -43,7 +43,7 @@ async def fetch_proxies_from_url(session, url):
         async with session.get(url) as response:
             if response.status == 200:
                 proxies = await response.text()
-                proxy_list = proxies.splitlines()  # Split the text by newlines to get individual proxies
+                proxy_list = proxies.splitlines()  # Разделение текста по символам новой строки, чтобы получить отдельные прокси.
                 print(f"Получено {len(proxy_list)} прокси из {url}")
                 return proxy_list
             else:
@@ -82,8 +82,8 @@ async def get_all_proxies():
 # Основная функция для получения всех прокси и проверки их работы
 async def main():
     async with aiohttp.ClientSession() as session:
-        proxies = await get_all_proxies()  # Get all proxies from sources
-        tasks = [get_working_socks(session, proxy) for proxy in proxies]  # Check if each proxy works
+        proxies = await get_all_proxies()  # Получение всех прокси из источников
+        tasks = [get_working_socks(session, proxy) for proxy in proxies]  # Проверка работает ли каждый прокси
         await asyncio.gather(*tasks)
 
 
