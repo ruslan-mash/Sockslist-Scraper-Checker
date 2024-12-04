@@ -1,4 +1,4 @@
-#socks-scraper
+# socks-scraper
 import aiohttp
 import asyncio
 import time
@@ -54,6 +54,19 @@ async def fetch_proxies_from_url(session, url):
         return []
 
 
+# Извлекаем все прокси из списка URL-адресов источников прокси
+async def get_all_proxies():
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch_proxies_from_url(session, url) for url in proxy_sources]
+        results = await asyncio.gather(*tasks)
+
+        # Свести список списков прокси в один список прокси
+        all_proxies = list(tuple([proxy for sublist in results for proxy in sublist]))
+        print(f"Количество полученных прокси: {len(all_proxies)}")
+        print(f"Удалено {len([proxy for sublist in results for proxy in sublist]) - len(all_proxies)} дупликатов")
+        return all_proxies
+
+
 # Проверка каждого прокси из полученного списка, чтобы убедиться, что он работает
 async def get_working_socks(session, proxy):
     try:
@@ -65,18 +78,6 @@ async def get_working_socks(session, proxy):
                 print(f"Прокси {proxy} не работает. Статус: {resp.status}")
     except Exception as e:
         print(f"Ошибка при проверке прокси {proxy} : {e}")
-
-
-# Извлекаем все прокси из списка URL-адресов источников прокси
-async def get_all_proxies():
-    async with aiohttp.ClientSession() as session:
-        tasks = [fetch_proxies_from_url(session, url) for url in proxy_sources]
-        results = await asyncio.gather(*tasks)
-
-        # Свести список списков прокси в один список прокси
-        all_proxies = [proxy for sublist in results for proxy in sublist]
-        print(f"Количество полученных прокси: {len(all_proxies)}")
-        return all_proxies
 
 
 # Основная функция для получения всех прокси и проверки их работы
@@ -96,4 +97,4 @@ if __name__ == "__main__":
     print('\n'.join(working_socks))
 
     # Время выполнения операции
-    print("--- %s секунд затрачено на поиск ---" % (time.time() - start_time))
+    print("--- %s секунд затрачено на выполнение ---" % (time.time() - start_time))
