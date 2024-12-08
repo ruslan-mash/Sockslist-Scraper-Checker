@@ -1,3 +1,6 @@
+# Дополнительная проверка валидированных прокси, получение дополнительной информации,
+# запись в json
+
 import time
 from proxy_checking import ProxyChecker
 import json
@@ -28,7 +31,7 @@ def check_proxy_with_checker():
         minutes = int((elapsed_time % 3600) // 60)
         seconds = int(elapsed_time % 60)
         print(
-            f'Всего проверено {len(result_proxychecker)} из {len(socks5_proxies)}, прошло {hours} часов {minutes} минут {seconds} секунд') #потом удалить
+            f'Всего проверено {len(result_proxychecker)} из {len(socks5_proxies)}, прошло {hours} часов {minutes} минут {seconds} секунд')  # потом удалить
 
 
 # Вызов функции для проверки прокси
@@ -38,7 +41,7 @@ check_proxy_with_checker()
 with open('result_proxychecker.json', 'w') as json_file:
     json.dump(result_proxychecker, json_file, indent=4)  # indent=4 делает JSON более читабельным
 
-print(f"Результаты проверки записаны в файл result_proxychecker.json") #потом удалить
+print(f"Результаты проверки записаны в файл result_proxychecker.json")  # потом удалить
 
 # Общие затраты времени #потом удалить
 total_elapsed_time = time.time() - start_time

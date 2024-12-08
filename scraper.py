@@ -1,9 +1,10 @@
-# socks5-scraper-checker
+# Получаем SOCKS5 прокси из интернет-списков, проверяем через запрос на url,
+# записываем валидированные результаты ip:port в файл txt
 
 import requests
 import re
 import time
-
+from fake_useragent import UserAgent
 
 start_time = time.time()
 
@@ -17,10 +18,10 @@ txt_sources = (
 )
 # Паттерн для фильтрации по ip:port из источника
 pattern = r'(\d+\.\d+\.\d+\.\d+:\d+)'
-# Заголовок для маскировки под браузер
-header = {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-}
+
+# Заголовок для маскировки под браузер (генерация случайного User-Agent за каждый запрос)
+ua=UserAgent()
+header={'User-Agent': ua.random}
 
 proxies_list = []  # список найденных прокси
 validated_socks = []  # список валидированнных прокси
@@ -44,24 +45,26 @@ def get_all_proxies():
 
 # Вызов функции для получения прокси
 get_all_proxies()
-founded_proxy = tuple(set(proxies_list))  # удаляем дубликаты
+
+founded_proxy = tuple(set(proxies_list))  # кортеж найденных прокси с удаленными дубликатами
 
 # Принт промежуточная проверка результатов
 print(f'Найдено {len(founded_proxy)} прокси')
 print(f'Ранее удалено {len(proxies_list) - len(founded_proxy)} дубликатов')
 
+
 # Проверка найденных прокси на работоспособность через url
-def check_proxy(check_proxy_count=0):
+def check_proxy(url, check_proxy_count=0):
     for proxy in founded_proxy:
         proxy_dict = {
             'http': f'socks5://{proxy}',  # Рассматриваем все прокси как socks5
             'https': f'socks5://{proxy}'
         }
-        check_proxy_count += 1 #считалка потом удалить
+        check_proxy_count += 1  # считалка потом удалить
         print(
-            f' Проверяется {proxy_dict}, всего проверено {check_proxy_count} из {len(founded_proxy)}, прошло  {(time.time() - start_time)//3600} часов {(time.time() - start_time)//60} минут {(time.time() - start_time)%60} секунд')  # потом удалить
+            f' Проверяется {proxy_dict}, всего проверено {check_proxy_count} из {len(founded_proxy)}, прошло  {(time.time() - start_time) // 3600} часов {(time.time() - start_time) // 60} минут {(time.time() - start_time) % 60} секунд')  # потом удалить
         try:
-            resp = requests.get(url='https://reqres.in/api/users/2', headers=header, proxies=proxy_dict, timeout=3.02)
+            resp = requests.get(url=url, headers=header, proxies=proxy_dict, timeout=3.02)
             if resp.status_code == 200:
                 validated_socks.append(proxy)
                 print(f"Proxy {proxy} is valid, status code: {resp.status_code}")  # принт о прохождении потом удалить
@@ -69,24 +72,22 @@ def check_proxy(check_proxy_count=0):
             continue
 
 
-# Вызов функции для проверки прокси
-check_proxy()
+# Вызов функции для проверки прокси через url
+check_proxy('https://reqres.in/api/users/2')
 
 # принты проверки выполнения
-print(f'Валидировано {len(validated_socks)} прокси')
-
-# Время выполнения всей программы
-end_time = time.time()
-elapsed_time = end_time - start_time
-minutes = elapsed_time // 60
-seconds = elapsed_time % 60
-print(f"--- {int(minutes)} мин {seconds:.2f} секунд затрачено на выполнение всей программы ---")
+print(f'Валидировано {len(validated_socks)} прокси')  # потом удалить
 
 # Запись валидированных прокси в файл
 with open('socks5_proxies.txt', 'w') as file:
     for proxy in validated_socks:
         file.write(f"{proxy}\n")
 
-print("Валидированные прокси записаны в файл socks5_proxies.txt") #потом удалить
+print("Валидированные прокси записаны в файл socks5_proxies.txt")  # потом удалить
 
-
+# Общие затраты времени #потом удалить
+total_elapsed_time = time.time() - start_time
+total_hours = int(total_elapsed_time // 3600)
+total_minutes = int((total_elapsed_time % 3600) // 60)
+total_seconds = int(total_elapsed_time % 60)
+print(f"--- Всего затрачено {total_hours} часов {total_minutes} минут {total_seconds} секунд ---")
