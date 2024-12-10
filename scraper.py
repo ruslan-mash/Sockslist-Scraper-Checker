@@ -122,7 +122,6 @@ print(f'Валидировано через url {len(validated_socks)} прок�
 checker = ProxyChecker()
 result_proxychecker = []
 
-
 # Проверка прокси через ProxyChecker и запись результатов
 def check_proxy_with_checker():
     for proxy in validated_socks:
