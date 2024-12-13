@@ -3,47 +3,18 @@ import re
 import time
 from fake_useragent import UserAgent
 import json
-from proxy_checking import ProxyChecker
+from proxy_information import ProxyInformation
 from datetime import datetime
-from django.http import HttpRequest
-
-proxies_list = []  # Список найденных прокси из всех источников
-validated_socks = []  # Список валидированных прокси
-checked_socks = []  # Список проверенных повторно прокси
-start_time = time.time()
-header = {'User-Agent': UserAgent().random}
-
-# Источники прокси socks5 в формате json
-geonode_sources = (
-    "https://proxylist.geonode.com/api/proxy-list?anonymityLevel=elite&protocols=socks5&limit=500&page=1&sort_by=lastChecked&sort_type=desc",
-    "https://proxylist.geonode.com/api/proxy-list?anonymityLevel=elite&protocols=socks5&limit=500&page=2&sort_by=lastChecked&sort_type=desc",
-    "https://proxylist.geonode.com/api/proxy-list?anonymityLevel=elite&protocols=socks5&limit=500&page=3&sort_by=lastChecked&sort_type=desc",
-
-)
-
-# Источники прокси socks5 в формате txt
-txt_sources = (
-    "https://spys.me/socks.txt",
-    "https://www.proxy-list.download/api/v1/get?type=socks5&anon=elite",
-    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
-    "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt",
-    "https://raw.githubusercontent.com/officialputuid/KangProxy/KangProxy/socks5/socks5.txt",
-    "https://raw.githubusercontent.com/r00tee/Proxy-List/main/Socks5.txt",
-    "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
-    "https://raw.githubusercontent.com/yemixzy/proxy-list/main/proxies/socks5.txt",
-    "https://sunny9577.github.io/proxy-scraper/generated/socks5_proxies.txt",
-)
 
 
-class ProxyValidator():
-    def __init__(self, proxies_list, validated_socks, checked_socks, start_time, header, geonode_sources, txt_sources):
+class ProxyValidator:
+    def __init__(self, proxies_list, checked_socks, start_time, header, txt_sources, checked_count):
         self.proxies_list = proxies_list  # Список найденных прокси из всех источников
-        self.validated_socks = validated_socks  # Список валидированных прокси
         self.checked_socks = checked_socks  # Список проверенных повторно прокси
         self.start_time = start_time
         self.header = header
-        self.geonode_sources = geonode_sources
         self.txt_sources = txt_sources
+        self.checked_count = checked_count
 
     def get_data_from_geonode(self):
         base_url = "https://proxylist.geonode.com/api/proxy-list?protocols=socks4%2Csocks5&limit=500"
@@ -51,7 +22,7 @@ class ProxyValidator():
             response = requests.get(f"{base_url}&page=1&sort_by=lastChecked&sort_type=desc", headers=self.header)
             response.raise_for_status()
             total = response.json().get('total', 0)
-            print(f"Total proxies available: {total}")
+            print(f"Total proxies available: {total}")  # удалить
 
             total_pages = (total // 500) + 1
             for number_page in range(1, total_pages + 1):
@@ -65,13 +36,12 @@ class ProxyValidator():
                         port = entry.get('port')
                         if ip and port:
                             self.proxies_list.append(f"{ip}:{port}")
-                    print(f"Page {number_page} processed. Total proxies collected: {len(self.proxies_list)}")
+                    print(f"Page {number_page} processed. Total proxies collected: {len(self.proxies_list)}")  # удалить
                 except requests.exceptions.RequestException as e:
                     print(f"Ошибка получения прокси из {page_url}: {e}")
 
         except requests.exceptions.RequestException as e:
             print(f"Ошибка получения информации из {base_url}: {e}")
-
 
     def get_data_from_socksus(self):
         url = "https://sockslist.us/Api?request=display&country=all&level=all&token=free"
@@ -79,24 +49,16 @@ class ProxyValidator():
             response = requests.get(url=url, headers=self.header)
             response.raise_for_status()
             data = response.json()
-            # Debugging: Print the data format to check its structure
-            # print("Response data from sockslist.us:", data)
-            # Assuming data is a list of dictionaries, we process it
             if isinstance(data, list):
                 for entry in data:
-                    # Check if entry is a dictionary before accessing 'ip' and 'port'
                     if isinstance(entry, dict):
                         ip = entry.get('ip')
                         port = entry.get('port')
                         if ip and port:
                             self.proxies_list.append(f"{ip}:{port}")
-                    else:
-                        print(f"Skipping invalid entry: {entry}")
-            else:
-                print("Expected list format, but received:", type(data))
+
         except requests.exceptions.RequestException as e:
             print(f"Ошибка получения прокси из {url}: {e}")
-
 
     def get_data_from_txt(self):
         pattern = r'(\d+\.\d+\.\d+\.\d+:\d+)'
@@ -111,60 +73,51 @@ class ProxyValidator():
                 proxy_list_filtered = re.findall(pattern, "\n".join(proxy_list))
                 self.proxies_list.extend(proxy_list_filtered)
 
-    def check_proxy(self, url, timeout=5):
+    def timer(self, start):
+        elapsed_time = time.time() - self.start_time
+        hours = int(elapsed_time // 3600)
+        minutes = int((elapsed_time % 3600) // 60)
+        seconds = int(elapsed_time % 60)
+        print(
+            f'Всего проверено {start} из {len(set(self.proxies_list))}, прошло {hours} часов {minutes} минут {seconds} секунд')
+
+    def check_proxy_with_proxyinformation(self, proxy):
+        checker = ProxyInformation()
+        result = checker.check_proxy(proxy)
+        if result.get("status") == True:
+            result['date'] = datetime.today().date().strftime('%d-%m-%Y')  # Преобразование даты в строку
+            result['time'] = datetime.today().time().strftime('%H:%M:%S')  # Преобразование времени в строку
+            self.checked_socks.append(result)
+
+    def check_proxy(self, url, timeout=3.05, max_retries=3):
         for count, proxy in enumerate(set(self.proxies_list), start=1):
-            proxy_dict = {
-                'http': f'socks5://{proxy}',
-                'https': f'socks5://{proxy}'
-            }
-            # Try SOCKS5 first, then SOCKS4 if SOCKS5 fails
-            try:
-                response = requests.get(url=url, headers=self.header, proxies=proxy_dict, timeout=timeout)
-                if response.ok:
-                    self.validated_socks.append(proxy)
-                    print(f"Прокси {proxy} валидный через SOCKS5, статус: {response.status_code}")
-                continue
-            except requests.exceptions.RequestException:
-                # Switch to SOCKS4
+            for protocol in ['socks5', 'socks4']:
                 proxy_dict = {
-                    'http': f'socks4://{proxy}',
-                    'https': f'socks4://{proxy}'
+                    'http': f'{protocol}://{proxy}',
+                    'https': f'{protocol}://{proxy}'
                 }
-                try:
-                    response = requests.get(url=url, headers=self.header, proxies=proxy_dict, timeout=timeout)
-                    if response.ok:
-                        self.validated_socks.append(proxy)
-                        print(f"Прокси {proxy} валидный через SOCKS4, статус: {response.status_code}")
-                except requests.exceptions.RequestException as e:
-                    print(f"Ошибка проверки прокси {proxy}: {e}")
+                retry_attempts = 0
+                while retry_attempts < max_retries:
+                    try:
+                        response = requests.get(url=url, headers=self.header, proxies=proxy_dict, timeout=timeout)
 
-    def check_proxy_with_checker(self):
-        checker = ProxyChecker()
-
-        for proxy in self.validated_socks:
-            result = checker.check_proxy(proxy)
-            if result.get("status") == True:
-                ip, port = proxy.split(':')
-                result['ip'] = ip
-                result['port'] = port
-                result['date'] = datetime.today().date().strftime('%Y-%m-%d')  # Преобразование даты в строку
-                result['time'] = datetime.today().time().strftime('%H:%M:%S')  # Преобразование времени в строку
-                self.checked_socks.append(result)
-            elapsed_time = time.time() - self.start_time
-            hours = int(elapsed_time // 3600)
-            minutes = int((elapsed_time % 3600) // 60)
-            seconds = int(elapsed_time % 60)
-            print(
-                f'Всего проверено {len(self.checked_socks)} из {len(self.validated_socks)}, прошло {hours} часов {minutes} минут {seconds} секунд')
-
-        return self.checked_socks
+                        if response.ok:
+                            print(f"Прокси {proxy} валидный через {protocol.upper()}, статус: {response.status_code}")
+                            self.check_proxy_with_proxyinformation(proxy)
+                            break
+                    except requests.exceptions.RequestException as e:
+                        retry_attempts += 1
+                        if retry_attempts >= max_retries:
+                            print(f"Ошибка проверки прокси {proxy} через {protocol.upper()}: {e}")
+            self.checked_count += 1
+            self.timer(self.checked_count)
 
     def save_results(self, checked_socks):
-        today = datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
+        today = datetime.today().strftime('%d-%m-%Y_%H-%M-%S')
         try:
             with open(f'checked_socks_{today}.json', 'w') as json_file:
                 json.dump(checked_socks, json_file, indent=4)
-            print(f"Результаты проверки записаны в файл checked_socks{today}.json")
+            print(f"Результаты проверки записаны в файл checked_socks_{today}.json")
         except Exception as e:
             print(f"Ошибка записи в файл: {e}")
 
@@ -175,12 +128,9 @@ class ProxyValidator():
         print(f'Найдено {len(set(self.proxies_list))} прокси')
 
         self.check_proxy('https://cloudflare.com')
+        self.timer(self.checked_count)
 
-        print(f'Валидировано через url {len(self.validated_socks)} прокси')
-
-        checked_socks = self.check_proxy_with_checker()
-
-        self.save_results(checked_socks)
+        self.save_results(self.checked_socks)
 
         total_elapsed_time = time.time() - self.start_time
         total_hours = int(total_elapsed_time // 3600)
@@ -190,5 +140,23 @@ class ProxyValidator():
 
 
 # Создание экземпляра класса и запуск процесса
-proxy_validator = ProxyValidator(proxies_list, validated_socks, checked_socks, start_time, header, geonode_sources, txt_sources)
+proxies_list = []  # Список найденных прокси из всех источников
+checked_socks = []  # Список проверенных прокси
+start_time = time.time()
+header = {'User-Agent': UserAgent().random}
+checked_count = 0
+# Источники прокси socks5 в формате txt
+txt_sources = (
+    "https://spys.me/socks.txt",
+    "https://www.proxy-list.download/api/v1/get?type=socks5&anon=elite",
+    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
+    "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt",
+    "https://raw.githubusercontent.com/officialputuid/KangProxy/KangProxy/socks5/socks5.txt",
+    "https://raw.githubusercontent.com/r00tee/Proxy-List/main/Socks5.txt",
+    "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
+    "https://raw.githubusercontent.com/yemixzy/proxy-list/main/proxies/socks5.txt",
+    "https://sunny9577.github.io/proxy-scraper/generated/socks5_proxies.txt",
+)
+
+proxy_validator = ProxyValidator(proxies_list, checked_socks, start_time, header, txt_sources, checked_count)
 proxy_validator.run()
