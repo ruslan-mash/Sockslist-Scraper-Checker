@@ -17,7 +17,7 @@ class ProxyValidator:
         self.checked_count = checked_count
 
     def get_data_from_geonode(self):
-        base_url = "https://proxylist.geonode.com/api/proxy-list?protocols=socks4%2Csocks5&limit=500"
+        base_url = "https://proxylist.geonode.com/api/proxy-list?protocols=socks5&limit=500"
         try:
             response = requests.get(f"{base_url}&page=1&sort_by=lastChecked&sort_type=desc", headers=self.header)
             response.raise_for_status()
@@ -89,26 +89,25 @@ class ProxyValidator:
             result['time'] = datetime.today().time().strftime('%H:%M:%S')  # Преобразование времени в строку
             self.checked_socks.append(result)
 
-    def check_proxy(self, url, timeout=3.05, max_retries=3):
-        for count, proxy in enumerate(set(self.proxies_list), start=1):
-            for protocol in ['socks5', 'socks4']:
-                proxy_dict = {
-                    'http': f'{protocol}://{proxy}',
-                    'https': f'{protocol}://{proxy}'
-                }
-                retry_attempts = 0
-                while retry_attempts < max_retries:
-                    try:
-                        response = requests.get(url=url, headers=self.header, proxies=proxy_dict, timeout=timeout)
 
-                        if response.ok:
-                            print(f"Прокси {proxy} валидный через {protocol.upper()}, статус: {response.status_code}")
-                            self.check_proxy_with_proxyinformation(proxy)
-                            break
-                    except requests.exceptions.RequestException as e:
-                        retry_attempts += 1
-                        if retry_attempts >= max_retries:
-                            print(f"Ошибка проверки прокси {proxy} через {protocol.upper()}: {e}")
+    def check_proxy(self, url, timeout=5, max_retries=3):
+        for count, proxy in enumerate(set(self.proxies_list), start=1):
+            proxy_dict = {
+                'http': f'socks5://{proxy}',
+                'https': f'socks5://{proxy}'
+            }
+            retry_attempts = 0
+            while retry_attempts < max_retries:
+                try:
+                    response = requests.get(url=url, headers=self.header, proxies=proxy_dict, timeout=timeout)
+                    if response.ok:
+                        self.check_proxy_with_proxyinformation(proxy)
+                        print(f"Прокси {proxy} валидный через SOCKS5, статус: {response.status_code}")
+                        break
+                except requests.exceptions.RequestException as e:
+                    retry_attempts += 1
+                    if retry_attempts >= max_retries:
+                        print(f"Ошибка проверки прокси {proxy} через SOCKS5: {e}")
             self.checked_count += 1
             self.timer(self.checked_count)
 
